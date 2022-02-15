@@ -1,6 +1,7 @@
 #%%
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 
 # %matplotlib auto
 
@@ -36,22 +37,31 @@ def main():
     vels = np.linspace(100, 250, 50)
     thetas = np.linspace(0, np.pi / 2, 50)
 
+    params = {"C_d": 2, "diam": 1, "rho_f": 1.3, "rho_p": 2700, "n": 0}
+
     # solve for L_max
     L_max = np.array(
-        [[analytical(get_vel_vec(vel, theta)) for theta in thetas] for vel in vels]
+        [
+            [analytical(get_vel_vec(vel, theta), **params) for theta in thetas]
+            for vel in vels
+        ]
     )
 
     # plot it
     fig, ax = plt.subplots()
     tthetas, vvels = np.meshgrid(thetas, vels)
-    plt.contourf(np.rad2deg(tthetas), vvels, L_max)
-    CS = plt.contour(np.rad2deg(tthetas), vvels, L_max, colors="k")
+    ax.contourf(np.rad2deg(tthetas), vvels, L_max)
+    CS = ax.contour(np.rad2deg(tthetas), vvels, L_max, colors="k")
     ax.set_xlabel(r"Ejection Angle,  $\Theta$")
     ax.set_ylabel(r"Ejection velocity,  $\frac{m}{s}$")
+    ax.set_title(f"C_d: {params['C_d']}\ndiam: {params['diam']}m")
     ax.clabel(CS, inline=1, fontsize=10)
     plt.show()
 
 
 if __name__ == "__main__":
     main()
+# %%
+
+
 # %%
