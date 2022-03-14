@@ -2,22 +2,91 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-#%% Spatial parameters ::
-# make a 2d grid
-dx = 0.1  # grid spacing
-L = 10  # 20m in Kessler
-N = int(L // dx)  # number of grid cells per dimension
-x = np.linspace(0, L, N)  # 1d axis
-X, Y = np.meshgrid(x, x)  # 2d coordinates
+
+class GridCell():
+    def __init__(self): 
+        self.void = False
+        self.frozen = False
+        self.n_stones = []
+        self.n_soil = []
+        self.w = []
+        self.temp = []
+        self.last_temp = []
+
+    def set_domain(self):
+        if self.n_stones == 1:
+            if self.n_soil == 1:
+                self.domain = 'soil'
+            else:
+                self.domain = 'stone'
 
 
-# %% Parameters for grid variables ::
+    def get_latent_heat(self, delta_T):
+        """At zero degrees, some delta_T is incurred as the heat
+        equation is stepped through time. Convert delta_T to
+        the equivalent energy input based on the specific heat 
+        capacity of the cell. 
+        """
+        pass
+        
+    def check_frozen(self, delta_T):
+        """Cell is considered 'frozen' when 
+        - w = 0: water content is zero
+        - T <= 0: temperature is freezing
+        """
+        # stone cells can't freeze: 
+        if self.domain == 'stone': return
+
+        if self.last_temp + delta_T <= 0: 
+            if self.w == 0:
+                self.frozen = True 
+            else: 
+                joules = self.get_latent_heat(delta_T)
+        elif self.tas
+
+    
+
+
+
+
+
+
+
+# #%% Spatial parameters ::
+# # make a 2d grid
+# dx = 0.1  # grid spacing
+# L = 10  # 20m in Kessler
+# N = int(L // dx)  # number of grid cells per dimension
+# x = np.linspace(0, L, N)  # 1d axis
+# X, Y = np.meshgrid(x, x)  # 2d coordinates
+
+
+# Integration parameters: 
+nt = 5000     # number of time steps 
+tmax = 1   # max. integration time
+nx = 25      # number of x-steps
+xmax = 1     # upper x-limit
+ny = nx      # number of y-steps
+ymax = 1     # upper y-limit
+# k_heat = 0.2     # diffusion constant
+dt = tmax/(nt-1)  # timestep
+dx = xmax/(nx-1)  # x-step
+dy = ymax/(ny-1)  # y-step
+
 # Temperature:
-T_a = -5  # degC
+T_a = -5 * np.ones(nt)  # degC
 T_b = 0  # degC
 T_g = 5  # degC
-k_heat = 1e06  # m2s-1
+k_heat = 0.2  #1e-06  # m2s-1
 k_surf = 5e-3  # m2yr-1
+
+stability_crit = dx**2 / (4*k_heat)
+if dt > stability_crit:
+    print('Warning! Unstable timestep')
+    print(f'{dt=} > {stability_crit=}')
+else: 
+    print(f'{dt=} < {stability_crit=}')
+
 
 # Heave distance:
 d_s = 0.6
@@ -27,27 +96,82 @@ d_v = 0.6
 h_stone = 0.6
 h_soil = 0.4
 
+# Soul parameters: 
 w = 0.1  # water content
 C = 0.05  # compressibility
 
-#%% Initialize temperatures with initial conditions:
-T_t0 = np.append(T_a, np.linspace(T_g, T_b, N - 1))
-T = (T_t0 * np.ones_like(X)).T
+
+# Set up linearly spaced grid:
+x = np.linspace(0, xmax, nx)
+y = np.linspace(0, ymax, ny)
+X,Y = np.meshgrid(x, y, indexing = 'xy')
 
 # Initialize particles:
-to_interface = int((h_stone * L) // dx)
+to_interface = int(nx * h_stone)
 P = np.ones_like(X)
 P[0:to_interface] = 0
 P[to_interface:] = 1
 
+#% Initialize temperatures with initial conditions:
+# Temperature grid:  
+T = np.zeros((nx,ny,nt))
 
-fig, ax = plt.subplots(2, sharex=True, sharey=True, figsize=(10, 10))
-ax[0].imshow(T)
-ax[0].set_title("Temperature grid")
-ax[1].imshow(P)
-ax[1].set_title("Particle grid")
-ax[1].set_xlabel("Width (grid units)")
-ax[0].set_ylabel("Depth (grid units)")
+T0_1d = np.append(T_a[0], np.linspace(T_g, T_b, nx - 1))
+T0_2d = (T0_1d * np.ones_like(X)).T
+T[:,:,0] = T0_2d
+
+# Boundary conditions on Temperature: 
+# Bottom row for all time slices is bottom of active layer: 
+T[-1,:,:] = T_b * np.ones((nx, nt))
+
+# # Top row for all time slices is atmospheric temperature: 
+for n in range(nt):
+    T[0,:,n] = T_a[n] * np.ones(nx)  # FIXME: atmospheric temperature varies
 
 
-# %%
+# #%% check your work
+# fig, ax = plt.subplots(2, sharex=True, sharey=True, figsize=(10, 10))
+# ax[0].imshow(T[:,:,0])
+# ax[0].set_title("Initial temperature grid")
+# ax[1].imshow(P)
+# ax[1].set_title("Initial particle grid")
+
+# ax[1].set_xlabel("Width (grid units)")
+# ax[0].set_ylabel("Depth (grid units)")
+
+
+#
+# Loop for explicit FTCS scheme: 
+for n in range(nt-1):
+    for i in np.arange(1, nx-1):
+        for j in np.arange(0, ny):
+            if j == ny-1:
+                T[i,j,n+1] = (T[i,j,n]+ 
+                (dt*k_heat/(dx**2))*(T[i-1,j,n] - 2*T[i,j,n] + T[i+1,j,n])+
+                (dt*k_heat/(dy**2))*(T[i,j-1,n] - 2*T[i,j,n] + T[i,0,n]))
+            else:
+                T[i,j,n+1] = (T[i,j,n]+ 
+                (dt*k_heat/(dx**2))*(T[i-1,j,n] - 2*T[i,j,n] + T[i+1,j,n])+
+                (dt*k_heat/(dy**2))*(T[i,j-1,n] - 2*T[i,j,n] + T[i,j+1,n]))
+
+
+# Plots: 
+time_idx = [0, int(nt/10), int(nt/2), nt-1]
+clim = [-5, 5]
+for ij in range(len(time_idx)):
+    fig=plt.figure(ij,figsize=(11,7),dpi=100)
+    plt.gca().invert_yaxis()
+    ax=fig.gca()
+    ax.set_xlabel('Length')
+    ax.set_ylabel('Depth')
+    # surf=ax.contourf(X,Y,T[:,:,time_idx[ij]])
+    surf = ax.imshow(T[:,:, time_idx[ij]], vmin=clim[0], vmax=clim[1])
+    # ax.axis('equal')
+    theTitle = 'fig. {}: 2D Heat Diffusion from a Line Source, t={}'.format(ij+1,time_idx[ij])
+    ax.set_title(theTitle)
+    cbar = plt.colorbar(surf)
+    cbar.set_label('Temperature')
+    plt.show()
+
+
+#%%# %%
