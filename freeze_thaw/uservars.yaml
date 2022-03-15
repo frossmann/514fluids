@@ -1,17 +1,18 @@
 timevars: 
-  nt: 5000
-  tmax: 1
+  nt: 900
+  tmax: 2628000
 gridvars:
-  nx: 25
+  nx: 50
   xmax: 1
-  ny: 25
+  ny: 50
   ymax: 1
+  n_atmos: 1
 tempvars:
   T_a: -5
   T_b: 0
   T_g: 5
-  k_heat: 0.2
-  k_surf: 5e-3
+  k_heat: 0.00001
+  k_surf: 0.005
 groundvars:
   d_s: 0.6
   d_v: 0.6
