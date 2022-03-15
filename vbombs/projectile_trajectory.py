@@ -34,10 +34,10 @@ def get_vel_vec(v0, theta):
 
 def main():
     # set up some different initial conditions:
-    vels = np.linspace(100, 250, 50)
+    vels = np.linspace(10, 150, 50)  # m/s
     thetas = np.linspace(0, np.pi / 2, 50)
 
-    params = {"C_d": 2, "diam": 1, "rho_f": 1.3, "rho_p": 2700, "n": 0}
+    params = {"C_d": 0.5, "diam": 0.1, "rho_f": 1.3, "rho_p": 2700, "n": 4}
 
     # solve for L_max
     L_max = np.array(

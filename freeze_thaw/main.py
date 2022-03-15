@@ -1,5 +1,4 @@
 #%%
-from operator import ne
 import numpy as np
 import matplotlib.pyplot as plt
 from numba import jit, njit
@@ -7,8 +6,10 @@ import timeit
 import time
 import yaml
 from collections import namedtuple
+import matplotlib.animation as animation
 
-# from StringUtils import print
+from PlotUtils import animate
+from StringUtils import tprint
 
 
 @njit
@@ -60,13 +61,13 @@ class Integrator:
         allowable time-step where the scheme becomes stable."""
         stability_crit = np.min((self.dx, self.dy)) ** 2 / (4 * self.tempvars.k_heat)
         if self.dt > stability_crit:
-            print("Warning! Unstable timestep")
-            print(f"{self.dt=} > {stability_crit=}")
-            print(f"Defaulting to minimum timestep {stability_crit=}")
+            tprint("Warning! Unstable timestep")
+            tprint(f"{self.dt=} > {stability_crit=}")
+            tprint(f"Defaulting to minimum timestep {stability_crit=}")
             self.dt = stability_crit
         else:
-            print("Timestep is stable: ")
-            print(f"{self.dt=} < {stability_crit=}")
+            tprint("Timestep is stable: ")
+            tprint(f"{self.dt=} < {stability_crit=}")
 
     def set_init(self):
         """Method to set up the physical parameters of the problem, integration
@@ -85,6 +86,13 @@ class Integrator:
         self.dy = self.gridvars.ymax / (self.gridvars.ny - 1)  # y-step
 
         self.check_init()
+
+        tprint(f"{self.gridvars.nx=}")
+        tprint(f"{self.gridvars.ny=}")
+        tprint(f"{self.timevars.nt=}")
+        tprint(f"{self.dx=}")
+        tprint(f"{self.dy=}")
+        tprint(f"{self.dt=}")
 
     def build_grid(self):
         """Method to construct a NxM model domain given requested
@@ -178,33 +186,14 @@ class Integrator:
 
 
 if __name__ == "__main__":
-    tst = Integrator("uservars.yaml")
-    tst.build_grid()
-    tst.timeloop()
+    sim = Integrator("uservars.yaml")
+    sim.build_grid()
+    sim.timeloop()
 
-    # make a plot:
-    nt = tst.timevars.nt
-    time_idx = [0, int(nt / 10), int(nt / 2), int(nt - 1)]
-    clim = [-5, 5]
-    for ij in range(len(time_idx)):
-        fig = plt.figure(ij, dpi=100)
-        plt.gca().invert_yaxis()
-        ax = fig.gca()
-        ax.set_xlabel("Length")
-        ax.set_ylabel("Depth")
-        # surf=ax.contourf(X,Y,T[:,:,time_idx[ij]])
-        surf = ax.imshow(tst.T[:, :, time_idx[ij]], vmin=clim[0], vmax=clim[1])
-        # ax.axis('equal')
-        theTitle = "fig. {}: 2D Heat Diffusion from a Line Source, t={}".format(
-            ij + 1, time_idx[ij]
-        )
-        ax.set_title(theTitle)
-        cbar = plt.colorbar(surf)
-        cbar.set_label("Temperature")
-        plt.show()
+    ani = animate(sim)
 
 
-# # import calculations as calc
+#%%
 
 
 # # Integration parameters:
