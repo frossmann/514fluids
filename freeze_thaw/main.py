@@ -6,12 +6,9 @@ from collections import namedtuple
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
-from numba import jit, njit
 
 from Integrators import Integrator
 from PlotUtils import animate
-from StringUtils import tprint
 
 if __name__ == "__main__":
     sim = Integrator("/Users/francis/repos/514fluids/freeze_thaw/uservars.yaml")
