@@ -1,0 +1,21 @@
+timevars: 
+  nt: 5000
+  tmax: 1
+gridvars:
+  nx: 25
+  xmax: 1
+  ny: 25
+  ymax: 1
+tempvars:
+  T_a: -5
+  T_b: 0
+  T_g: 5
+  k_heat: 0.2
+  k_surf: 5e-3
+groundvars:
+  d_s: 0.6
+  d_v: 0.6
+  h_stone: 0.6
+  h_soil: 0.4
+  w: 0.1
+  C: 0.05
