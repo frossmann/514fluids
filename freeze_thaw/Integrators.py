@@ -10,6 +10,7 @@ from StringUtils import tprint
 @njit
 def _update_T(
     last_step,
+    last_mask,
     dx,
     dy,
     nx,
@@ -22,8 +23,18 @@ def _update_T(
     # copy the time step specifically to pull out the top and bottom
     # boundary conditions (FIXME)
     next_step = last_step.copy()
-    for i in np.arange(1, ny - 1):
+    # start the loop from the top of the simulation but continue
+    # if the cell is masked as atmospheric (or void)
+    # always skip the last step because the lower boundary is fixed...
+    for i in np.arange(0, ny - 1):
         for j in np.arange(0, nx):
+            # Check if the [i, j]'th cell is atmospheric:
+            if last_mask[i, j] == 0:
+                # If cell is air, T[i,j] should equal T_a and
+                # we can do nothing here. NOTE: a sanitization step
+                # is necessary higher in this stack to check that atmospheric
+                # cells aren't accumulating heat.
+                continue
             # Set up periodic boundary conditions (note we don't need to do this if
             # j == 0 because then j-1 == -1 which python indexes as the last element
             # so wrapping is already taken care of )
@@ -102,14 +113,18 @@ class Integrator:
         y = np.linspace(0, grid.ymax, grid.ny)
         X, Y = np.meshgrid(x, y, indexing="xy")
 
-        #% Initialize temperatures with initial conditions:
-        # Temperature grid:
+        # Preallocate for temperature and mask arrays:
         T = np.zeros((grid.nx, grid.ny, tm.nt))  # temperatures grid
-        M = np.ones((grid.nx, grid.ny, tm.nt))  # mask grid
-        M[: grid.n_atmos, :, :] = np.zeros(
-            (grid.nx, grid.n_atmos)
-        )  # uppermost n_atmos cells are 'empty'
-        M[int(grid.ny * ground.h_stone) :, :, :] *= 2
+        M = np.zeros((grid.nx, grid.ny, tm.nt))  # mask grid
+
+        # Set up the geometry of the problem with a mask:
+        # Top n_atmos cells are void (mask value == 0)
+        M0 = np.ones((grid.nx, grid.ny))
+        M0[: grid.n_atmos, :] = 0
+        # Set 'stones' to have a mask value of 2
+        M0[int(grid.ny * ground.h_stone) :, :] *= 2
+        # Assign to first time slice:
+        M[:, :, 0] = M0
 
         # Set the first  'plane' of initial conditions:
         # 1D linear temperature profile with depth:
@@ -118,18 +133,16 @@ class Integrator:
             np.linspace(temp.T_g, temp.T_b, grid.nx - 1),
         )
         # Map to 2D and set to first timestep:
-        T[:, :, 0] = (T0_1d * np.ones_like(X)).T
+        T0 = (T0_1d * np.ones_like(X)).T
 
         # Boundary conditions on Temperature:
+        T[0, :] = temp.T_a
         # Bottom row for all time slices is bottom of active layer:
-        T[-1, :, :] = temp.T_b * np.ones((grid.nx, tm.nt))
+        T0[-1, :] = temp.T_b
+        # Assign to first time slice:
+        T[:, :, 0] = T0
 
-        # # Top row for all time slices is atmospheric temperature:
-        for n in range(tm.nt):
-            T[0, :, n] = temp.T_a * np.ones(
-                grid.nx
-            )  # FIXME: atmospheric temperature varies
-
+        # Set attributes:
         self.T = T
         self.M = M
 
@@ -147,6 +160,7 @@ class Integrator:
         to a serial loop with standard compilation)."""
         next_step = _update_T(
             self.last_step,
+            self.last_mask,
             self.dx,
             self.dy,
             self.gridvars.nx,
@@ -165,15 +179,18 @@ class Integrator:
         - 3: ice
         - 4: void
         """
-        next_mask = np.ones_like(self.M[:, :, 0])
-        next_mask[self.last_mask == 0] = self.T_a
+        # FIXME: function currently only returns a copy()
+        next_mask = self.last_mask.copy()
+        return next_mask
 
     def timeloop(self):
         """Method which holds the main timeloop."""
         t = self.timevars
         for n in range(t.nt - 1):
             self.last_step = self.T[:, :, n]
+            self.last_mask = self.M[:, :, n]
             self.T[:, :, n + 1] = self.update_T()
+            self.M[:, :, n + 1] = self.update_mask()
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0
             # check if frozen
