@@ -35,3 +35,55 @@ def animate(sim, clim=[-5, 5]):
     )
     plt.show()
     return [ani]
+
+
+def plot_mask_3d(sim, idx):
+    fig = plt.figure()
+    ax = plt.axes(projection="3d")
+    ax.set_xlabel("Length")
+    ax.set_ylabel("Width")
+    ax.set_zlabel("Depth")
+    ax.invert_zaxis()
+    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.M[:, :, :, idx], alpha=0.5)
+    cbar = plt.colorbar(sc)
+    plt.show()
+
+
+def plot_temp_3d(sim, idx):
+    fig = plt.figure()
+    ax = plt.axes(projection="3d")
+    ax.set_xlabel("Length")
+    ax.set_ylabel("Width")
+    ax.set_zlabel("Depth")
+    ax.invert_zaxis()
+    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.T[:, :, :, idx], alpha=0.5)
+    cbar = plt.colorbar(sc)
+    cbar.set_label("Temperature")
+
+
+def animate_3d(sim, clim=[-5, 5]):
+    fig = plt.figure()
+    ax = plt.axes(projection="3d")
+    ax.set_xlabel("Length")
+    ax.set_ylabel("Width")
+    ax.set_zlabel("Depth")
+    ax.invert_zaxis()
+    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.T[:, :, :, 0], alpha=0.5)
+    cbar = plt.colorbar(sc)
+    cbar.set_label("Temperature")
+
+    # function to update figure
+    def updatefig(j):
+        # set the data in the axesimage object
+        sc.set_array(sim.T[:, :, :, j])
+        theTitle = f"t={((sim.dt * j) / (60 * 60 * 24)):.2f} days"
+        ax.set_title(theTitle)
+        # return the artists set
+        return [sc]
+
+    # kick off the animation
+    ani = animation.FuncAnimation(
+        fig, updatefig, frames=np.arange(0, sim.timevars.nt, 100), interval=1, blit=True
+    )
+    plt.show()
+    return [ani]

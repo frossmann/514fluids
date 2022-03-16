@@ -22,9 +22,9 @@ def _update_T_3D(
     3D heat diffusion in a plane:"""
 
     # Factors for explicit scheme:
-    diagx = -2 * dx ** 2 / (2 * k_heat * dt)
-    diagy = -2 * dy ** 2 / (2 * k_heat * dt)
-    diagz = -2 * dz ** 2 / (2 * k_heat * dt)
+    diagx = -2 * (dx ** 2) / (2 * k_heat * dt)
+    diagy = -2 * (dy ** 2) / (2 * k_heat * dt)
+    diagz = -2 * (dz ** 2) / (2 * k_heat * dt)
     weightx = k_heat * dt / (dx ** 2)
     weighty = k_heat * dt / (dy ** 2)
     weightz = k_heat * dt / (dz ** 2)
@@ -46,7 +46,7 @@ def _update_T_3D(
                     continue
 
                 # Handle the periodic boundary conditions inelegantly for now:
-                if i == nx - 1:
+                if i == nx - 1 and j < ny - 1:
                     # For the case where the loop hits the i  = (nx - 1)'th element,
                     # there is no T[i+1, j, k]'th element because MAX(i) == nx - 1 and
                     # i + 1 when i == nx implies an element which is not indexable but
@@ -71,12 +71,33 @@ def _update_T_3D(
                             + last_step[i, j, k] * diagz
                         )
                     )
-                elif j == ny - 1:
+                elif j == ny - 1 and i < nx - 1:
                     next_step[i, j, k] = (
                         weightx
                         * (
                             last_step[i - 1, j, k]
                             + last_step[i + 1, j, k]
+                            + last_step[i, j, k] * diagx
+                        )
+                        + weighty
+                        * (
+                            last_step[i, j - 1, k]
+                            + last_step[i, 0, k]
+                            + last_step[i, j, k] * diagy
+                        )
+                        + weightz
+                        * (
+                            last_step[i, j, k - 1]
+                            + last_step[i, j, k + 1]
+                            + last_step[i, j, k] * diagz
+                        )
+                    )
+                elif j == ny - 1 and i == nx - 1:
+                    next_step[i, j, k] = (
+                        weightx
+                        * (
+                            last_step[i - 1, j, k]
+                            + last_step[0, j, k]
                             + last_step[i, j, k] * diagx
                         )
                         + weighty

@@ -1,21 +1,16 @@
 #%%
-import time
-import timeit
-from collections import namedtuple
 
-import matplotlib.animation as animation
-import matplotlib.pyplot as plt
-import numpy as np
-
-from Integrators import Integrator2D
-from PlotUtils import animate
+from Integrators import Integrator2D, Integrator3D
+from PlotUtils import animate, animate_3d, plot_mask_3d, plot_temp_3d
 
 if __name__ == "__main__":
-    sim = Integrator2D("/Users/francis/repos/514fluids/freeze_thaw/uservars.yaml")
+
+    sim = Integrator3D("/Users/francis/repos/514fluids/freeze_thaw/uservars_3d.yaml")
     sim.build_grid()
     sim.timeloop()
-
-    ani = animate(sim)
+    plot_mask_3d(sim, 0)
+    plot_temp_3d(sim, 0)
+    # ani = animate_3d(sim)
 
 
 #%%
