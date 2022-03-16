@@ -23,7 +23,7 @@ def main_3d():
 
 
 if __name__ == "__main__":
-    sim = main_2d()
+    sim = main_3d()
 
 
 #%%

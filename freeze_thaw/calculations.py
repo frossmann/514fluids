@@ -20,8 +20,11 @@ def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
 
     for i in np.arange(0, nx):
         for j in np.arange(0, ny):
-            # always skip the last layer of z-cells because the lower boundary is fixed...
-            for k in np.arange(0, nz - 1):
+            # NOTE:
+            # - skip k = 0 because this is the ideally atmosphere AND
+            # k-1 --> k == -1 which samples the bottom of the active layer.
+            # - skip k == nz because it's explicitly the bottom of "".
+            for k in np.arange(1, nz - 1):
 
                 # Check if the [i, j]'th cell is atmospheric:
                 if last_mask[i, j, k] == 0:

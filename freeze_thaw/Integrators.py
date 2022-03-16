@@ -1,7 +1,6 @@
 from collections import namedtuple
 
 import numpy as np
-from pyrsistent import v
 import yaml
 from numba import jit, njit
 
@@ -207,7 +206,15 @@ class Integrator3D(Integrator):
         self.dz = self.gridvars.zmax / (self.gridvars.nz)  # z-step
 
         self.check_init()
+
+        self.nz = self.gridvars.nz + self.gridvars.n_atmos
+        self.nx = self.gridvars.nx
+        self.ny = self.gridvars.ny
+
         print(f"Problem size: {self.gridvars.nx * self.gridvars.ny * self.gridvars.nz}")
+        tprint(f"{self.nx=}")
+        tprint(f"{self.ny=}")
+        tprint(f"{self.nz=}")
         tprint(f"{self.dx=}")
         tprint(f"{self.dy=}")
         tprint(f"{self.dz=}")
@@ -224,21 +231,21 @@ class Integrator3D(Integrator):
         tm = self.timevars
 
         # Set up linearly spaced grid:
-        x = np.linspace(0, grid.xmax, grid.nx)
-        y = np.linspace(0, grid.ymax, grid.ny)
-        z = np.linspace(0, grid.zmax, grid.nz)
+        x = np.linspace(0, grid.xmax, self.nx)
+        y = np.linspace(0, grid.ymax, self.ny)
+        z = np.linspace(0, grid.zmax, self.nz)
         X, Y, Z = np.meshgrid(x, y, z, indexing="ij")
 
         # Preallocate for temperature and mask arrays:
-        T = np.zeros((grid.nx, grid.ny, grid.nz, tm.nt))  # temperatures grid
-        M = np.zeros((grid.nx, grid.ny, grid.nz, tm.nt))  # mask grid
+        T = np.zeros((self.nx, self.ny, self.nz, tm.nt))  # temperatures grid
+        M = np.zeros((self.nx, self.ny, self.nz, tm.nt))  # mask grid
 
         # Set up the geometry of the problem with a mask:
         # Top n_atmos cells are void (mask value == 0)
-        M0 = np.ones((grid.nx, grid.ny, grid.nz))
+        M0 = np.ones((self.nx, self.ny, self.nz))
         M0[:, :, : grid.n_atmos] = 0
         # Set 'stones' to have a mask value of 2
-        M0[:, :, int(grid.nz * ground.h_stone) :] *= 2
+        M0[:, :, int(self.nz * ground.h_stone) :] *= 2
         # Assign to first time slice:
         M[:, :, :, 0] = M0
 
@@ -246,7 +253,7 @@ class Integrator3D(Integrator):
         # 1D linear temperature profile with depth:
         T0_1d = np.append(
             temp.T_a * np.ones(grid.n_atmos),
-            np.linspace(temp.T_g, temp.T_b, grid.nz - 1),
+            np.linspace(temp.T_g, temp.T_b, grid.nz),
         )
         # Map to 2D and set to first timestep:
         T0 = T0_1d * np.ones_like(X)
