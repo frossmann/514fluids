@@ -6,18 +6,7 @@ from numba import njit, jit
 
 
 @njit
-def _update_T_3D(
-    last_step,
-    last_mask,
-    dx,
-    dy,
-    dz,
-    nx,
-    ny,
-    nz,
-    dt,
-    k_heat,
-):
+def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
     """Forward time centered space numerical scheme to calculate
     3D heat diffusion in a plane:"""
 
@@ -40,6 +29,7 @@ def _update_T_3D(
                     # we can do nothing here. NOTE: a sanitization step
                     # is necessary higher in this stack to check that atmospheric
                     # cells aren't accumulating heat.
+                    next_step[i, j, k] = T_a
                     continue
 
                 # Handle the periodic boundary conditions inelegantly for now:
