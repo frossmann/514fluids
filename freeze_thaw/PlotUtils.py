@@ -75,6 +75,7 @@ def plot_temp_3d(sim, idx, clim=[-5, 5]):
     )
     cbar = plt.colorbar(sc)
     cbar.set_label("Temperature")
+    plt.show()
 
 
 def animate_3d(sim, clim=[-5, 5]):
