@@ -30,12 +30,12 @@ class Integrator2D(Integrator):
         allowable time-step where the scheme becomes stable."""
         stability_crit = np.min((self.dx, self.dy)) ** 2 / (4 * self.tempvars.k_heat)
         if self.dt > stability_crit:
-            tprint("Warning! Unstable timestep")
+            print("Warning! Unstable timestep")
             tprint(f"{self.dt=} > {stability_crit=}")
             tprint(f"Defaulting to minimum timestep {stability_crit=}")
             self.dt = stability_crit
         else:
-            tprint("Timestep is stable: ")
+            print("Timestep is stable: ")
             tprint(f"{self.dt=} < {stability_crit=}")
 
     def set_init(self):
@@ -50,18 +50,18 @@ class Integrator2D(Integrator):
         groundvars = namedtuple("groundvars", self.config["groundvars"].keys())
         self.groundvars = groundvars(**self.config["groundvars"])
 
-        self.dt = self.timevars.tmax / (self.timevars.nt - 1)  # timestep
-        self.dx = self.gridvars.xmax / (self.gridvars.nx - 1)  # x-step
-        self.dy = self.gridvars.ymax / (self.gridvars.ny - 1)  # y-step
+        self.dt = self.timevars.tmax / (self.timevars.nt)  # timestep
+        self.dx = self.gridvars.xmax / (self.gridvars.nx)  # x-step
+        self.dy = self.gridvars.ymax / (self.gridvars.ny)  # y-step
 
         self.check_init()
 
         tprint(f"{self.gridvars.nx=}")
         tprint(f"{self.gridvars.ny=}")
-        tprint(f"{self.timevars.nt=}")
-        tprint(f"{self.dx=}")
-        tprint(f"{self.dy=}")
-        tprint(f"{self.dt=}")
+        tprint(f"{self.timevars.nt=} s")
+        tprint(f"{self.dx=} m")
+        tprint(f"{self.dy=} m")
+        tprint(f"{self.dt=} m")
 
     def build_grid(self):
         """Method to construct a NxM model domain given requested
@@ -77,12 +77,12 @@ class Integrator2D(Integrator):
         X, Y = np.meshgrid(x, y, indexing="ij")
 
         # Preallocate for temperature and mask arrays:
-        T = np.zeros((grid.nx, grid.ny, tm.nt))  # temperatures grid
-        M = np.zeros((grid.nx, grid.ny, tm.nt))  # mask grid
+        T = np.zeros((grid.ny, grid.nx, tm.nt))  # temperatures grid
+        M = np.zeros((grid.ny, grid.nx, tm.nt))  # mask grid
 
         # Set up the geometry of the problem with a mask:
         # Top n_atmos cells are void (mask value == 0)
-        M0 = np.ones((grid.nx, grid.ny))
+        M0 = np.ones((grid.ny, grid.nx))
         M0[: grid.n_atmos, :] = 0
         # Set 'stones' to have a mask value of 2
         M0[int(grid.ny * ground.h_stone) :, :] *= 2
@@ -93,7 +93,7 @@ class Integrator2D(Integrator):
         # 1D linear temperature profile with depth:
         T0_1d = np.append(
             temp.T_a * np.ones(grid.n_atmos),
-            np.linspace(temp.T_g, temp.T_b, grid.nx - 1),
+            np.linspace(temp.T_g, temp.T_b, grid.ny - 1),
         )
         # Map to 2D and set to first timestep:
         T0 = (T0_1d * np.ones_like(X)).T
@@ -171,12 +171,12 @@ class Integrator3D(Integrator):
             8 * self.tempvars.k_heat
         )
         if self.dt > stability_crit:
-            tprint("Warning! Unstable timestep")
+            print("Warning! Unstable timestep")
             tprint(f"{self.dt=} > {stability_crit=}")
             tprint(f"Defaulting to minimum timestep {stability_crit=}")
             self.dt = stability_crit
         else:
-            tprint("Timestep is stable: ")
+            print("Timestep is stable: ")
             tprint(f"{self.dt=} < {stability_crit=}")
 
     def set_init(self):
@@ -191,19 +191,19 @@ class Integrator3D(Integrator):
         groundvars = namedtuple("groundvars", self.config["groundvars"].keys())
         self.groundvars = groundvars(**self.config["groundvars"])
 
-        self.dt = self.timevars.tmax / (self.timevars.nt - 1)  # timestep
-        self.dx = self.gridvars.xmax / (self.gridvars.nx - 1)  # x-step
-        self.dy = self.gridvars.ymax / (self.gridvars.ny - 1)  # y-step
-        self.dz = self.gridvars.zmax / (self.gridvars.nz - 1)  # z-step
+        self.dt = self.timevars.tmax / (self.timevars.nt)  # timestep
+        self.dx = self.gridvars.xmax / (self.gridvars.nx)  # x-step
+        self.dy = self.gridvars.ymax / (self.gridvars.ny)  # y-step
+        self.dz = self.gridvars.zmax / (self.gridvars.nz)  # z-step
 
         self.check_init()
-
-        tprint(f"{self.gridvars.nx=}")
-        tprint(f"{self.gridvars.ny=}")
-        tprint(f"{self.timevars.nt=}")
+        print(f"Problem size: {self.gridvars.nx * self.gridvars.ny * self.gridvars.nz}")
         tprint(f"{self.dx=}")
         tprint(f"{self.dy=}")
-        tprint(f"{self.dt=}")
+        tprint(f"{self.dz=}")
+        print("Integration parameters:")
+        tprint(f"{self.timevars.nt=}")
+        tprint(f"{self.dt=}\n")
 
     def build_grid(self):
         """Method to construct a NxM model domain given requested
@@ -293,6 +293,15 @@ class Integrator3D(Integrator):
         next_mask = self.last_mask.copy()
         return next_mask
 
+    def sanitize_boundary(self, last_step):
+        """Enforces the fixed temperature boundary condition
+        at the base of the active layer in the case that the
+        FTCS scheme diffuses into it"""
+        # The active layer boundary traverses all columns and rows of
+        # the bottom 'sheet'.
+        last_step[:, :, -1] = self.tempvars.T_b
+        return last_step
+
     def timeloop(self):
         """Method which holds the main timeloop."""
         t = self.timevars
@@ -300,7 +309,7 @@ class Integrator3D(Integrator):
             self.last_step = self.T[:, :, :, n]
             self.last_mask = self.M[:, :, :, n]
             self.T[:, :, :, n + 1] = self.update_T_3D()
-            self.M[:, :, :, n + 1] = self.update_mask()
+            self.M[:, :, :, n + 1] = self.sanitize_boundary(self.update_mask())
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0
             # check if frozen

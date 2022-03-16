@@ -2,16 +2,16 @@ timevars:
   nt: 10000
   tmax: 2628000
 gridvars:
-  nx: 50
-  xmax: 10
-  ny: 50
-  ymax: 10
+  nx: 200
+  xmax: 20
+  ny: 20
+  ymax: 1
   n_atmos: 1
 tempvars:
   T_a: -5
   T_b: 0
   T_g: 5
-  k_heat: 0.00001
+  k_heat: 0.000001
   k_surf: 0.005
 groundvars:
   d_s: 0.6

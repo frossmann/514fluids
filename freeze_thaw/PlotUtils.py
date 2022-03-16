@@ -37,26 +37,42 @@ def animate(sim, clim=[-5, 5]):
     return [ani]
 
 
-def plot_mask_3d(sim, idx):
+def plot_mask_3d(sim, idx, clim=[0, 2]):
     fig = plt.figure()
     ax = plt.axes(projection="3d")
     ax.set_xlabel("Length")
     ax.set_ylabel("Width")
     ax.set_zlabel("Depth")
     ax.invert_zaxis()
-    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.M[:, :, :, idx], alpha=0.5)
+    sc = ax.scatter(
+        sim.X,
+        sim.Y,
+        sim.Z,
+        c=sim.M[:, :, :, idx],
+        alpha=0.5,
+        vmin=clim[0],
+        vmax=clim[1],
+    )
     cbar = plt.colorbar(sc)
     plt.show()
 
 
-def plot_temp_3d(sim, idx):
+def plot_temp_3d(sim, idx, clim=[-5, 5]):
     fig = plt.figure()
     ax = plt.axes(projection="3d")
     ax.set_xlabel("Length")
     ax.set_ylabel("Width")
     ax.set_zlabel("Depth")
     ax.invert_zaxis()
-    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.T[:, :, :, idx], alpha=0.5)
+    sc = ax.scatter(
+        sim.X,
+        sim.Y,
+        sim.Z,
+        c=sim.T[:, :, :, idx],
+        alpha=0.5,
+        vmin=clim[0],
+        vmax=clim[1],
+    )
     cbar = plt.colorbar(sc)
     cbar.set_label("Temperature")
 
