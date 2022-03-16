@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 import numpy as np
+from pyrsistent import v
 import yaml
 from numba import jit, njit
 
@@ -50,12 +51,19 @@ class Integrator2D(Integrator):
         groundvars = namedtuple("groundvars", self.config["groundvars"].keys())
         self.groundvars = groundvars(**self.config["groundvars"])
 
+        # Add in key integration params as attributes:
         self.dt = self.timevars.tmax / (self.timevars.nt)  # timestep
         self.dx = self.gridvars.xmax / (self.gridvars.nx)  # x-step
         self.dy = self.gridvars.ymax / (self.gridvars.ny)  # y-step
 
-        self.check_init()
+        # Depth of model including atmospheric cells:
+        self.ny = self.gridvars.ny + self.gridvars.n_atmos
+        self.nx = self.gridvars.nx
 
+        # Check the timestep is stable and correct it if not: s
+        self.check_init()
+        tprint(f"{self.nx=}")
+        tprint(f"{self.ny=}")
         tprint(f"{self.gridvars.nx=}")
         tprint(f"{self.gridvars.ny=}")
         tprint(f"{self.timevars.nt=} s")
@@ -66,6 +74,7 @@ class Integrator2D(Integrator):
     def build_grid(self):
         """Method to construct a NxM model domain given requested
         parametrs."""
+
         grid = self.gridvars
         ground = self.groundvars
         temp = self.tempvars
@@ -73,19 +82,20 @@ class Integrator2D(Integrator):
 
         # Set up linearly spaced grid:
         x = np.linspace(0, grid.xmax, grid.nx)
-        y = np.linspace(0, grid.ymax, grid.ny)
+        # Make sure to add the extra cells for the atmosphere on top:
+        y = np.linspace(0, grid.ymax + grid.n_atmos * self.dy, self.ny)
         X, Y = np.meshgrid(x, y, indexing="ij")
 
         # Preallocate for temperature and mask arrays:
-        T = np.zeros((grid.ny, grid.nx, tm.nt))  # temperatures grid
-        M = np.zeros((grid.ny, grid.nx, tm.nt))  # mask grid
+        T = np.zeros((self.ny, grid.nx, tm.nt))  # temperatures grid
+        M = np.zeros((self.ny, grid.nx, tm.nt))  # mask grid
 
         # Set up the geometry of the problem with a mask:
         # Top n_atmos cells are void (mask value == 0)
-        M0 = np.ones((grid.ny, grid.nx))
+        M0 = np.ones((self.ny, grid.nx))
         M0[: grid.n_atmos, :] = 0
         # Set 'stones' to have a mask value of 2
-        M0[int(grid.ny * ground.h_stone) :, :] *= 2
+        M0[int(self.ny * ground.h_stone) :, :] *= 2
         # Assign to first time slice:
         M[:, :, 0] = M0
 
@@ -93,7 +103,7 @@ class Integrator2D(Integrator):
         # 1D linear temperature profile with depth:
         T0_1d = np.append(
             temp.T_a * np.ones(grid.n_atmos),
-            np.linspace(temp.T_g, temp.T_b, grid.ny - 1),
+            np.linspace(temp.T_g, temp.T_b, grid.ny),
         )
         # Map to 2D and set to first timestep:
         T0 = (T0_1d * np.ones_like(X)).T
@@ -277,6 +287,7 @@ class Integrator3D(Integrator):
             self.gridvars.nz,
             self.dt,
             self.tempvars.k_heat,
+            self.tempvars.T_a,
         )
         return next_step
 
@@ -299,8 +310,9 @@ class Integrator3D(Integrator):
         FTCS scheme diffuses into it"""
         # The active layer boundary traverses all columns and rows of
         # the bottom 'sheet'.
-        last_step[:, :, -1] = self.tempvars.T_b
-        return last_step
+        sani_step = last_step.copy()
+        sani_step[:, :, -1] = self.tempvars.T_b
+        return sani_step
 
     def timeloop(self):
         """Method which holds the main timeloop."""
@@ -308,8 +320,9 @@ class Integrator3D(Integrator):
         for n in range(t.nt - 1):
             self.last_step = self.T[:, :, :, n]
             self.last_mask = self.M[:, :, :, n]
-            self.T[:, :, :, n + 1] = self.update_T_3D()
-            self.M[:, :, :, n + 1] = self.sanitize_boundary(self.update_mask())
+            next_step = self.update_T_3D()
+            self.T[:, :, :, n + 1] = next_step
+            self.M[:, :, :, n + 1] = self.update_mask()
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0
             # check if frozen
