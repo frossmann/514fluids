@@ -7,11 +7,11 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 
-from Integrators import Integrator
+from Integrators import Integrator2D
 from PlotUtils import animate
 
 if __name__ == "__main__":
-    sim = Integrator("/Users/francis/repos/514fluids/freeze_thaw/uservars.yaml")
+    sim = Integrator2D("/Users/francis/repos/514fluids/freeze_thaw/uservars.yaml")
     sim.build_grid()
     sim.timeloop()
 
