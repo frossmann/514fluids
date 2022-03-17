@@ -1,11 +1,13 @@
 timevars: 
-  nt: 10000
+  nt: 1000
   tmax: 2628000
 gridvars:
-  nx: 100
+  nx: 50
   xmax: 10
-  ny: 20
-  ymax: 1
+  ny: 50
+  ymax: 10
+  nz: 20
+  zmax: 1
   n_atmos: 2
 tempvars:
   T_a: -5
