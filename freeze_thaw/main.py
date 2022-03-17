@@ -17,8 +17,9 @@ def main_2d():
 def main_3d():
     sim = Integrator3D("/Users/francis/repos/514fluids/freeze_thaw/uservars_3d.yaml")
     sim.build_grid()
-    # plot_mask_3d(sim,0)
     sim.timeloop()
+
+    ani = animate_3d(sim)
     return sim
 
 
