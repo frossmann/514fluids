@@ -16,7 +16,7 @@ def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
     weight_z = k_heat * dt / (dz ** 2)
     # copy the time step specifically to pull out the top and bottom
     # boundary conditions (FIXME)
-    next_step = last_step.copy()
+    next_step = np.zeros_like(last_step)
 
     for i in np.arange(0, nx):
         for j in np.arange(0, ny):
@@ -24,14 +24,14 @@ def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
             # - skip k = 0 because this is the ideally atmosphere AND
             # k-1 --> k == -1 which samples the bottom of the active layer.
             # - skip k == nz because it's explicitly the bottom of "".
-            for k in np.arange(1, nz - 1):
+            for k in np.arange(0, nz - 1):
 
                 # Check if the [i, j]'th cell is atmospheric:
                 if last_mask[i, j, k] == 0:
                     # If cell is air, T[i,j] should equal T_a and
                     # we can do nothing here. NOTE: a sanitization step
                     # is necessary higher in this stack to check that atmospheric
-                    # cells aren't accumulating heat.
+                    # cells aren't accumulating heat: until then, declare it explicitly:
                     next_step[i, j, k] = T_a
                     continue
 
@@ -41,7 +41,7 @@ def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
                     # there is no T[i+1, j, k]'th element because MAX(i) == nx - 1 and
                     # i + 1 when i == nx implies an element which is not indexable but
                     # physically is the i == 0th element:
-                    next_step[i, j, k] = (
+                    next_step[i, j, k] = last_step[i, j, k] + (
                         weight_x
                         * (
                             last_step[i - 1, j, k]
@@ -62,7 +62,7 @@ def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
                         )
                     )
                 elif j == ny - 1 and i < nx - 1:
-                    next_step[i, j, k] = (
+                    next_step[i, j, k] = last_step[i, j, k] + (
                         weight_x
                         * (
                             last_step[i - 1, j, k]
@@ -83,7 +83,7 @@ def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
                         )
                     )
                 elif j == ny - 1 and i == nx - 1:
-                    next_step[i, j, k] = (
+                    next_step[i, j, k] = last_step[i, j, k] + (
                         weight_x
                         * (
                             last_step[i - 1, j, k]
@@ -104,7 +104,7 @@ def _update_T_3D(last_step, last_mask, dx, dy, dz, nx, ny, nz, dt, k_heat, T_a):
                         )
                     )
                 else:
-                    next_step[i, j, k] = (
+                    next_step[i, j, k] = last_step[i, j, k] + (
                         weight_x
                         * (
                             last_step[i - 1, j, k]
