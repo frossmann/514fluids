@@ -207,6 +207,7 @@ class Integrator3D(Integrator):
 
         self.check_init()
 
+        # Set spatial step for the entire model including the atmosphere:
         self.nz = self.gridvars.nz + self.gridvars.n_atmos
         self.nx = self.gridvars.nx
         self.ny = self.gridvars.ny
@@ -289,9 +290,9 @@ class Integrator3D(Integrator):
             self.dx,
             self.dy,
             self.dz,
-            self.gridvars.nx,
-            self.gridvars.ny,
-            self.gridvars.nz,
+            self.nx,
+            self.ny,
+            self.nz,
             self.dt,
             self.tempvars.k_heat,
             self.tempvars.T_a,
@@ -328,7 +329,7 @@ class Integrator3D(Integrator):
             self.last_step = self.T[:, :, :, n]
             self.last_mask = self.M[:, :, :, n]
             next_step = self.update_T_3D()
-            self.T[:, :, :, n + 1] = next_step
+            self.T[:, :, :, n + 1] = self.sanitize_boundary(next_step)
             self.M[:, :, :, n + 1] = self.update_mask()
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0
