@@ -18,7 +18,7 @@ def animate(sim, clim=[-5, 5]):
     # )
     # ax.set_title(theTitle)
     cbar = plt.colorbar(im)
-    cbar.set_label("Temperature")
+    cbar.set_label("Temperature", rotation=270)
 
     # function to update figure
     def updatefig(j):
@@ -85,22 +85,27 @@ def animate_3d(sim, clim=[-5, 5]):
     ax.set_ylabel("Width")
     ax.set_zlabel("Depth")
     ax.invert_zaxis()
-    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.T[:, :, :, 0], alpha=0.5)
+    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.T[:, :, :, 0].ravel(), alpha=0.5)
     cbar = plt.colorbar(sc)
-    cbar.set_label("Temperature")
+    cbar.set_label("Temperature", rotation=270)
 
     # function to update figure
     def updatefig(j):
         # set the data in the axesimage object
-        sc.set_array(sim.T[:, :, :, j])
+        sc.set_array(sim.T[:, :, :, j].ravel())
         theTitle = f"t={((sim.dt * j) / (60 * 60 * 24)):.2f} days"
         ax.set_title(theTitle)
         # return the artists set
         return [sc]
 
-    # kick off the animation
+    # # kick off the animation
     ani = animation.FuncAnimation(
-        fig, updatefig, frames=np.arange(0, sim.timevars.nt, 100), interval=1, blit=True
+        fig,
+        updatefig,
+        frames=np.arange(0, sim.timevars.nt, 100),
+        interval=1,
+        blit=False,
     )
     plt.show()
     return [ani]
+    # return None
