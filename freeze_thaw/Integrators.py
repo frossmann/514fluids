@@ -6,6 +6,7 @@ from numba import jit, njit
 
 from StringUtils import tprint
 from calculations import _update_T, _update_T_3D
+from tqdm import tqdm
 
 
 class Integrator:
@@ -24,7 +25,7 @@ class Integrator2D(Integrator):
     Inherit from this base class and supply your own derivative method,
     initialization routines and timeloop."""
 
-    def check_init(self):
+    def check_timestep_stability(self):
         """Function to check that the stability criterion for a
         FTCS numerical scheme is met, if not, defaults to the smallest
         allowable time-step where the scheme becomes stable."""
@@ -60,7 +61,7 @@ class Integrator2D(Integrator):
         self.nx = self.gridvars.nx
 
         # Check the timestep is stable and correct it if not: s
-        self.check_init()
+        self.check_timestep_stability()
         tprint(f"{self.nx=}")
         tprint(f"{self.ny=}")
         tprint(f"{self.gridvars.nx=}")
@@ -115,8 +116,8 @@ class Integrator2D(Integrator):
         T[:, :, 0] = T0
 
         # Set attributes:
-        self.T = T
-        self.M = M
+        self.T = T  # temperature
+        self.M = M  # mask
 
     def __init__(self, coeff_filename):
         super().__init__(coeff_filename)
@@ -172,7 +173,7 @@ class Integrator3D(Integrator):
     Inherit from this base class and supply your own derivative method,
     initialization routines and timeloop."""
 
-    def check_init(self):
+    def check_timestep_stability(self):
         """Function to check that the stability criterion for a
         FTCS numerical scheme is met, if not, defaults to the smallest
         allowable time-step where the scheme becomes stable."""
@@ -184,6 +185,9 @@ class Integrator3D(Integrator):
             tprint(f"{self.dt=} > {stability_crit=}")
             tprint(f"Defaulting to minimum timestep {stability_crit=}")
             self.dt = stability_crit
+            self.nt = int(np.floor(self.timevars.tmax / self.dt))
+            tprint(f"{self.nt=} timesteps to reach {self.timevars.tmax=}")
+
         else:
             print("Timestep is stable: ")
             tprint(f"{self.dt=} < {stability_crit=}")
@@ -205,7 +209,7 @@ class Integrator3D(Integrator):
         self.dy = self.gridvars.ymax / (self.gridvars.ny)  # y-step
         self.dz = self.gridvars.zmax / (self.gridvars.nz)  # z-step
 
-        self.check_init()
+        self.check_timestep_stability()
 
         # Set spatial step for the entire model including the atmosphere:
         self.nz = self.gridvars.nz + self.gridvars.n_atmos
@@ -238,8 +242,8 @@ class Integrator3D(Integrator):
         X, Y, Z = np.meshgrid(x, y, z, indexing="ij")
 
         # Preallocate for temperature and mask arrays:
-        T = np.zeros((self.nx, self.ny, self.nz, tm.nt))  # temperatures grid
-        M = np.zeros((self.nx, self.ny, self.nz, tm.nt))  # mask grid
+        T = np.zeros((self.nx, self.ny, self.nz, self.nt))  # temperatures grid
+        M = np.zeros((self.nx, self.ny, self.nz, self.nt))  # mask grid
 
         # Set up the geometry of the problem with a mask:
         # Top n_atmos cells are void (mask value == 0)
@@ -324,13 +328,19 @@ class Integrator3D(Integrator):
 
     def timeloop(self):
         """Method which holds the main timeloop."""
-        t = self.timevars
-        for n in range(t.nt - 1):
+        eps = 1e-4
+        for n in tqdm(range(self.nt - 1)):
             self.last_step = self.T[:, :, :, n]
             self.last_mask = self.M[:, :, :, n]
             next_step = self.update_T_3D()
             self.T[:, :, :, n + 1] = self.sanitize_boundary(next_step)
+
+            if np.allclose(self.last_step, next_step, rtol=eps):
+                print("Timeloop converged after {n=} iterations. Exiting.")
+                return
+
             self.M[:, :, :, n + 1] = self.update_mask()
+
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0
             # check if frozen

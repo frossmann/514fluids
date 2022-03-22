@@ -78,21 +78,27 @@ def plot_temp_3d(sim, idx, clim=[-5, 5]):
     plt.show()
 
 
-def animate_3d(sim, clim=[-5, 5]):
+def animate_3d(sim, clim=[-5, 5], step=10):
     fig = plt.figure()
     ax = plt.axes(projection="3d")
     ax.set_xlabel("Length")
     ax.set_ylabel("Width")
     ax.set_zlabel("Depth")
     ax.invert_zaxis()
-    sc = ax.scatter(sim.X, sim.Y, sim.Z, c=sim.T[:, :, :, 0].ravel(), alpha=0.5)
+    sc = ax.scatter(
+        sim.X[::step, ::step, ::step],
+        sim.Y[::step, ::step, ::step],
+        sim.Z[::step, ::step, ::step],
+        c=sim.T[::step, ::step, ::step, 0].ravel(),
+        alpha=0.5,
+    )
     cbar = plt.colorbar(sc)
     cbar.set_label("Temperature", rotation=270)
 
     # function to update figure
     def updatefig(j):
         # set the data in the axesimage object
-        sc.set_array(sim.T[:, :, :, j].ravel())
+        sc.set_array(sim.T[::step, ::step, ::step, j].ravel())
         theTitle = f"t={((sim.dt * j) / (60 * 60 * 24)):.2f} days"
         ax.set_title(theTitle)
         # return the artists set
@@ -102,7 +108,7 @@ def animate_3d(sim, clim=[-5, 5]):
     ani = animation.FuncAnimation(
         fig,
         updatefig,
-        frames=np.arange(0, sim.timevars.nt, 100),
+        frames=np.arange(0, sim.timevars.nt, 10),
         interval=1,
         blit=False,
     )

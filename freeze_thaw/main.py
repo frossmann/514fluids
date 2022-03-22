@@ -27,7 +27,7 @@ if __name__ == "__main__":
     sim = main_3d()
 
 
-#%%
+c  #%%
 # # Integration parameters:
 # nt = 5000  # number of time steps
 # tmax = 1  # max. integration time
