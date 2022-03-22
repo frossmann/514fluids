@@ -334,12 +334,11 @@ class Integrator3D(Integrator):
             self.last_mask = self.M[:, :, :, n]
             next_step = self.update_T_3D()
             self.T[:, :, :, n + 1] = self.sanitize_boundary(next_step)
+            self.M[:, :, :, n + 1] = self.update_mask()
 
             if np.allclose(self.last_step, next_step, rtol=eps):
-                print("Timeloop converged after {n=} iterations. Exiting.")
+                print(f"Timeloop converged after {n=} iterations. Exiting.")
                 return
-
-            self.M[:, :, :, n + 1] = self.update_mask()
 
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0

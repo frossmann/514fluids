@@ -78,7 +78,7 @@ def plot_temp_3d(sim, idx, clim=[-5, 5]):
     plt.show()
 
 
-def animate_3d(sim, clim=[-5, 5], step=10):
+def animate_3d(sim, clim=[-5, 5], step=5):
     fig = plt.figure()
     ax = plt.axes(projection="3d")
     ax.set_xlabel("Length")
