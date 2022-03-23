@@ -37,7 +37,14 @@ def animate(sim, clim=[-5, 5]):
     return [ani]
 
 
-def plot_mask_3d(sim, idx, clim=[0, 2]):
+def plot_var_3d(sim, var, idx, clim=[0, 2]):
+    if var.lower() == "t":
+        plotvar = sim.T
+    if var.lower() == "m":
+        plotvar = sim.M
+    if var.lower() == "w":
+        plotvar = sim.W
+
     fig = plt.figure()
     ax = plt.axes(projection="3d")
     ax.set_xlabel("Length")
@@ -48,7 +55,7 @@ def plot_mask_3d(sim, idx, clim=[0, 2]):
         sim.X,
         sim.Y,
         sim.Z,
-        c=sim.M[:, :, :, idx],
+        c=plotvar[:, :, :, idx],
         alpha=0.5,
         vmin=clim[0],
         vmax=clim[1],
