@@ -1,6 +1,6 @@
 timevars: 
   nt: 1000
-  tmax: 5256000
+  tmax: 500000
 gridvars:
   nx: 50
   xmax: 5
