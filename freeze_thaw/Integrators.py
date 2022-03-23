@@ -191,6 +191,7 @@ class Integrator3D(Integrator):
         else:
             print("Timestep is stable: ")
             tprint(f"{self.dt=} < {stability_crit=}")
+            self.nt = self.timevars.nt
 
     def set_init(self):
         """Method to set up the physical parameters of the problem, integration
@@ -243,16 +244,23 @@ class Integrator3D(Integrator):
 
         # Preallocate for temperature and mask arrays:
         T = np.zeros((self.nx, self.ny, self.nz, self.nt))  # temperatures grid
-        M = np.zeros((self.nx, self.ny, self.nz, self.nt))  # mask grid
+        M = np.zeros_like(T)  # mask grid
+        W = np.zeros_like(T)  # water content grid
 
         # Set up the geometry of the problem with a mask:
         # Top n_atmos cells are void (mask value == 0)
         M0 = np.ones((self.nx, self.ny, self.nz))
         M0[:, :, : grid.n_atmos] = 0
-        # Set 'stones' to have a mask value of 2
+        # Set 'soil' to have a mask value of 2
         M0[:, :, int(self.nz * ground.h_stone) :] *= 2
         # Assign to first time slice:
         M[:, :, :, 0] = M0
+
+        # For the first time slice all soil cells all are assigned
+        # an initial water content set by groundvars.
+        W0 = np.zeros_like(M0)
+        W0[np.where(M0 == 2)] = self.groundvars.w
+        W[:, :, :, 0] = W0
 
         # Set the first  'plane' of initial conditions:
         # 1D linear temperature profile with depth:
@@ -277,6 +285,7 @@ class Integrator3D(Integrator):
         self.X = X
         self.Y = Y
         self.Z = Z
+        self.W = W
 
     def __init__(self, coeff_filename):
         super().__init__(coeff_filename)
