@@ -5,8 +5,14 @@ import yaml
 from numba import jit, njit
 
 from StringUtils import tprint
-from calculations import _update_T, _update_T_3D
+from calculations import (
+    _update_T,
+    _update_T_3D,
+    get_freezing_latent_heat,
+    joules_from_delta_T,
+)
 from tqdm import tqdm
+from copy import copy
 
 
 class Integrator:
@@ -292,6 +298,16 @@ class Integrator3D(Integrator):
         self.set_init()
         self.build_grid()
 
+    def sanitize_boundary(self, last_step):
+        """Enforces the fixed temperature boundary condition
+        at the base of the active layer in the case that the
+        FTCS scheme diffuses into it"""
+        # The active layer boundary traverses all columns and rows of
+        # the bottom 'sheet'.
+        sanitized_step = last_step.copy()
+        sanitized_step[:, :, -1] = self.tempvars.T_b
+        return sanitized_step
+
     def update_T_3D(self):
         """Wrapper function for _update_T() function which is
         outside of the Integrator class which uses Numba's no-python
@@ -310,7 +326,7 @@ class Integrator3D(Integrator):
             self.tempvars.k_heat,
             self.tempvars.T_a,
         )
-        return next_step
+        return self.sanitize_boundary(next_step)
 
     def update_mask(self):
         """Method which will handle tracking the occupancy of each cell,
@@ -325,15 +341,16 @@ class Integrator3D(Integrator):
         next_mask = self.last_mask.copy()
         return next_mask
 
-    def sanitize_boundary(self, last_step):
-        """Enforces the fixed temperature boundary condition
-        at the base of the active layer in the case that the
-        FTCS scheme diffuses into it"""
-        # The active layer boundary traverses all columns and rows of
-        # the bottom 'sheet'.
-        sani_step = last_step.copy()
-        sani_step[:, :, -1] = self.tempvars.T_b
-        return sani_step
+    def index_sign_change(self, next_step):
+        # signum of last temperature time slice
+        last_sign = np.sign(self.last_step)
+        # signum of next time slice
+        next_sign = np.sign(next_step)
+        # return as 1 if sign changes from pos to neg and otherwise
+        # return zero. works because temperature only decreases with
+        # time, i.e. no heating in this specific problem.
+        sign_delta = last_sign - next_sign
+        return sign_delta
 
     def timeloop(self):
         """Method which holds the main timeloop."""
@@ -341,15 +358,59 @@ class Integrator3D(Integrator):
         for n in tqdm(range(self.nt - 1)):
             self.last_step = self.T[:, :, :, n]
             self.last_mask = self.M[:, :, :, n]
+
+            self.W[:, :, :, n + 1] = copy(self.W[:, :, :, n])
+
             next_step = self.update_T_3D()
-            self.T[:, :, :, n + 1] = self.sanitize_boundary(next_step)
-            self.M[:, :, :, n + 1] = self.update_mask()
 
             if np.allclose(self.last_step, next_step, rtol=eps):
                 print(f"Timeloop converged after {n=} iterations. Exiting.")
                 return
 
+            # update temperatures:
+            self.T[:, :, :, n + 1] = next_step
+            # self.M[:, :, :, n + 1] = self.update_mask()
+
+            # correct for latent heat release:
+            sign_delta = self.index_sign_change(next_step)
+            if np.any(sign_delta):
+                indices = np.argwhere(sign_delta)
+
+                for index in indices:
+                    i, j, k = index
+                    # the value in next_cell is the portion
+                    # of the total delta_T from last --> next steps
+                    # that is below zero (this <0 temperature drop is
+                    # what does the work.)
+                    next_cell = next_step[i, j, k]
+
+                    last_cell = self.last_step[i, j, k]
+                    water_content = self.W[i, j, k, n]
+                    water_mass = water_content * self.dx * self.dy * self.dz * 0.5
+
+                    total_latent_heat = get_freezing_latent_heat(water_mass)
+                    print(f"{total_latent_heat=}")
+                    joules_released = joules_from_delta_T(water_mass, next_cell)
+                    print(f"{joules_released=}")
+                    proportion_frozen = joules_released / total_latent_heat
+
+                    # update water content:
+                    next_water = water_content - water_content * (1 - proportion_frozen)
+
+                    # update temperature grid:
+                    self.T[i, j, k, n + 1] = 0
+
+                    if next_water < 0:
+                        print("Freezing front overshot")
+                        # correct the temperature grid:
+                        # calculate mass of water overshot
+                        # find how many joules it would have taken to freeze that mass
+                        # find what delta_T arises from re-adding those many joules
+                        # update the temperature grid with delta_T
+                    self.W[i, j, k, n + 1] = next_water
+
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0
             # check if frozen
             # juggle cells
+            # if any in T where M > 0 has sign change from last --> next:
