@@ -179,9 +179,9 @@ def _update_T(
     return next_step
 
 
-def get_latent_heat(mass_h20):
-    """Returns latent heat that would be released
-    by freezing `mass_h20` of water."""
+def get_freezing_latent_heat(mass_h20):
+    """Returns energy in the form of latent heat that would
+    be released by freezing `mass_h20` of water."""
     heat_of_fusion = 333.55 * 1000  # J/g * 1000g/1kg  [J/kg]
     return mass_h20 * heat_of_fusion
 
@@ -190,6 +190,7 @@ def joules_from_delta_T(mass_h20, delta_temp):
     """Returns joules released that would theoretically
     be released by dropping a `mass_h20`
     by `delta-temp` degrees"""
+    delta_temp = np.abs(delta_temp)
     specific_heat_h20 = 4182  # J/(kgC)
     return specific_heat_h20 * mass_h20 * delta_temp
 
@@ -208,3 +209,6 @@ def push_to_surface():
 
 def push_to_void():
     pass
+
+
+# %%
