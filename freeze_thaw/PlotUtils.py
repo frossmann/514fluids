@@ -37,7 +37,7 @@ def animate(sim, clim=[-5, 5]):
     return [ani]
 
 
-def plot_var_3d(sim, var, idx, clim=[0, 2]):
+def plot_var_3d(sim, var, idx):
     if var.lower() == "t":
         plotvar = sim.T
     if var.lower() == "m":
@@ -57,8 +57,6 @@ def plot_var_3d(sim, var, idx, clim=[0, 2]):
         sim.Z,
         c=plotvar[:, :, :, idx],
         alpha=0.5,
-        vmin=clim[0],
-        vmax=clim[1],
     )
     cbar = plt.colorbar(sc)
     plt.show()
