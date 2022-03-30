@@ -192,8 +192,16 @@ def joules_from_delta_T(mass_h20, delta_temp):
     by `delta-temp` degrees"""
     delta_temp = np.abs(delta_temp)
     specific_heat_h20 = 4182  # J/(kgC)
-    return specific_heat_h20 * mass_h20 * delta_temp
+    return mass_h20 * specific_heat_h20 * delta_temp
 
+
+def delta_T_from_joules(mass_h20, joules):
+    """Returns temperature delta incurred from that removing 
+    quantity `joules` from `mass_h20` kg of liquid water, in degC"""
+    joules = np.abs(joules)
+    specific_heat_h20 = 4182  # J/(kgC)
+    return joules / (mass_h20 * specific_heat_h20)
+    
 
 def lens_creation():
     pass
