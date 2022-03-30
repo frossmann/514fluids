@@ -5,12 +5,7 @@ import yaml
 from numba import jit, njit
 
 from StringUtils import tprint
-from calculations import (
-    _update_T,
-    _update_T_3D,
-    get_freezing_latent_heat,
-    joules_from_delta_T,
-)
+import calculations as calc
 from tqdm import tqdm
 from copy import copy
 
@@ -135,7 +130,7 @@ class Integrator2D(Integrator):
         outside of the Integrator class which uses Numba's no-python
         just-in-time compilation (~20x speedup last I checked compared
         to a serial loop with standard compilation)."""
-        next_step = _update_T(
+        next_step = calc._update_T(
             self.last_step,
             self.last_mask,
             self.dx,
@@ -292,6 +287,7 @@ class Integrator3D(Integrator):
         self.Y = Y
         self.Z = Z
         self.W = W
+        self.end = []
 
     def __init__(self, coeff_filename):
         super().__init__(coeff_filename)
@@ -313,7 +309,7 @@ class Integrator3D(Integrator):
         outside of the Integrator class which uses Numba's no-python
         just-in-time compilation (~20x speedup last I checked compared
         to a serial loop with standard compilation)."""
-        next_step = _update_T_3D(
+        next_step = calc._update_T_3D(
             self.last_step,
             self.last_mask,
             self.dx,
@@ -359,20 +355,24 @@ class Integrator3D(Integrator):
             self.last_step = self.T[:, :, :, n]
             self.last_mask = self.M[:, :, :, n]
 
-            self.W[:, :, :, n + 1] = copy(self.W[:, :, :, n])
-
             next_step = self.update_T_3D()
 
             if np.allclose(self.last_step, next_step, rtol=eps):
                 print(f"Timeloop converged after {n=} iterations. Exiting.")
+                self.end = n - 1
                 return
 
             # update temperatures:
             self.T[:, :, :, n + 1] = next_step
-            # self.M[:, :, :, n + 1] = self.update_mask()
+            self.M[:, :, :, n + 1] = self.update_mask()
+            self.W[:, :, :, n + 1] = copy(self.W[:, :, :, n])
 
             # correct for latent heat release:
+            # check for elements in the updated volume where the sign
+            # of temperature has crossed zero and switched:
             sign_delta = self.index_sign_change(next_step)
+
+            # sign_delta = np.logical_and(self.last_step > 0, next_step < 0)
             if np.any(sign_delta):
                 indices = np.argwhere(sign_delta)
 
@@ -384,31 +384,72 @@ class Integrator3D(Integrator):
                     # what does the work.)
                     next_cell = next_step[i, j, k]
 
-                    last_cell = self.last_step[i, j, k]
-                    water_content = self.W[i, j, k, n]
-                    water_mass = water_content * self.dx * self.dy * self.dz * 0.5
+                    # last_cell = self.last_step[i, j, k]
+                    water_content = self.W[i, j, k, n + 1]
 
-                    total_latent_heat = get_freezing_latent_heat(water_mass)
-                    print(f"{total_latent_heat=}")
-                    joules_released = joules_from_delta_T(water_mass, next_cell)
-                    print(f"{joules_released=}")
-                    proportion_frozen = joules_released / total_latent_heat
+                    # if water content is zero, do nothing
+                    if water_content < 1e-5:
+                        # just force it to zero for good measure:
+                        water_content = 0
+                        continue
+                    # if water content is non_zero:
+                    else:
+                        # tprint(
+                        #     f"Negative part of temperature delta is {next_cell} degC"
+                        # )
+                        # calculate water mass in the cell as as:
+                        # mass =  rho * (0.5 * V) where V = (dx * dy * dz)
+                        water_mass = (
+                            water_content * self.dx * self.dy * self.dz * 0.5 * 1000
+                        )
+                        # tprint(f"{water_mass=} kg of water in the cell")
 
-                    # update water content:
-                    next_water = water_content - water_content * (1 - proportion_frozen)
+                        # calculate joules released by theoretically freezing that mass
+                        # of water:
+                        total_latent_heat = calc.get_freezing_latent_heat(water_mass)
+                        # tprint(f"{total_latent_heat=}")
 
-                    # update temperature grid:
-                    self.T[i, j, k, n + 1] = 0
+                        # calculate how many joules would be required to lower the mass of
+                        # water in the cell by delta_T:
+                        joules_released = calc.joules_from_delta_T(
+                            water_mass, next_cell
+                        )
+                        # tprint(f"{joules_released=}")
 
-                    if next_water < 0:
-                        print("Freezing front overshot")
-                        # correct the temperature grid:
-                        # calculate mass of water overshot
-                        # find how many joules it would have taken to freeze that mass
-                        # find what delta_T arises from re-adding those many joules
-                        # update the temperature grid with delta_T
+                        if total_latent_heat >= joules_released:
+                            proportion_frozen = joules_released / total_latent_heat
+                            # tprint(f"{proportion_frozen=}")
+                            # update water content:
+                            next_water = water_content * (1 - proportion_frozen)
+                            # tprint(f"Water content updated to {next_water=}")
+                            # update temperature grid:
+                            self.T[i, j, k, n + 1] = 0
+
+                        # now check if there has been an overshoot:
+                        # This happens where temperature diffusion creates a
+                        # delta_T which would incur more freezing than there is
+                        # material to freeze: the newly frozen cell should therefore
+                        # have a correction applied to it so that it can pick up
+                        # a value < 0.
+                        elif total_latent_heat < joules_released:
+                            # set water content to zero (freeze the whole cell because
+                            # and adequate or more than adequate amount of energy has been
+                            # released to satisfy the latent heat of freezing requirements: )
+                            next_water = 0
+
+                            # calculate how much extra energy has been released
+                            extra_joules = joules_released - total_latent_heat
+
+                            # figure out what temperature change in FIXME: liquid water
+                            # that such an energy release would incur:
+                            temp_correction = calc.delta_T_from_joules(
+                                water_mass, extra_joules
+                            )
+                            # update the temperature:
+                            self.T[i, j, k, n + 1] = -temp_correction
+
                     self.W[i, j, k, n + 1] = next_water
-
+            self.end = self.nt
             # FIXME: after delta_T from the last time step is calculated:
             # find cells in T that have w > 0 and T < 0
             # check if frozen
