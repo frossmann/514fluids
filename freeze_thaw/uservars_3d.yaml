@@ -1,12 +1,12 @@
 timevars: 
-  nt: 1000
-  tmax: 500000
+  nt: 10000
+  tmax: 2628000
 gridvars:
-  nx: 50
-  xmax: 5
-  ny: 50
-  ymax: 5
-  nz: 20
+  nx: 25
+  xmax: 2.5
+  ny: 25
+  ymax: 2.5
+  nz: 20  
   zmax: 1
   n_atmos: 2
 tempvars:
@@ -20,5 +20,5 @@ groundvars:
   d_v: 0.6
   h_stone: 0.6
   h_soil: 0.4
-  w: 0.1
+  w: 0.05
   C: 0.05
