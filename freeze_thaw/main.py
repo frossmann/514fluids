@@ -1,7 +1,15 @@
 #%%
 import matplotlib.pyplot as plt
 from Integrators import Integrator2D, Integrator3D
-from PlotUtils import animate, animate_3d, plot_var_3d, plot_temp_3d
+import PlotUtils
+
+# from PlotUtils import (
+#     animate,
+#     animate_3d,
+#     plot_var_3d,
+#     plot_temp_3d,
+#     animate_depth_profile,
+# )
 
 
 def main_2d():
@@ -9,7 +17,7 @@ def main_2d():
     sim.build_grid()
     sim.timeloop()
 
-    ani = animate(sim)
+    ani = PlotUtils.animate(sim)
     return sim
 
 
@@ -17,11 +25,16 @@ def main_3d():
     sim = Integrator3D("/Users/francis/repos/514fluids/freeze_thaw/uservars_3d.yaml")
     sim.build_grid()
     # plot_mask_3d(sim,0)
-    # sim.timeloop()
+    sim.timeloop()
+
+    # animate_depth_profile(sim, "t")
+    # animate_depth_profile(sim, "w")
     return sim
 
 
 if __name__ == "__main__":
     sim = main_3d()
+    # pass
+
 
 # %%
