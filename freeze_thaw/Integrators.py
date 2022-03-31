@@ -1,18 +1,13 @@
 from collections import namedtuple
+from copy import copy
 
 import numpy as np
 import yaml
 from numba import jit, njit
-
-from StringUtils import tprint
-from calculations import (
-    _update_T,
-    _update_T_3D,
-    get_freezing_latent_heat,
-    joules_from_delta_T,
-)
 from tqdm import tqdm
-from copy import copy
+
+import calculations as calc
+from StringUtils import tprint
 
 
 class Integrator:
@@ -95,6 +90,7 @@ class Integrator2D(Integrator):
         # Preallocate for temperature and mask arrays:
         T = np.zeros((self.ny, grid.nx, tm.nt))  # temperatures grid
         M = np.zeros((self.ny, grid.nx, tm.nt))  # mask grid
+        W = np.zeros_like(M)
 
         # Set up the geometry of the problem with a mask:
         # Top n_atmos cells are void (mask value == 0)
@@ -104,6 +100,13 @@ class Integrator2D(Integrator):
         M0[int(self.ny * ground.h_stone) :, :] *= 2
         # Assign to first time slice:
         M[:, :, 0] = M0
+
+        # Set up the water content of cells:
+        W0 = np.zeros_like(M0)  # inherit shape of W0 from M0
+        # Cells which are defined as 'soil' in the mask are set to
+        # the water content specified in self.groundvars.soil
+        W0[np.where(M0 == 2)] = self.groundvars.w
+        W[:, :, 0] = W0
 
         # Set the first  'plane' of initial conditions:
         # 1D linear temperature profile with depth:
@@ -124,6 +127,7 @@ class Integrator2D(Integrator):
         # Set attributes:
         self.T = T  # temperature
         self.M = M  # mask
+        self.W = W  # water
 
     def __init__(self, coeff_filename):
         super().__init__(coeff_filename)
@@ -135,7 +139,7 @@ class Integrator2D(Integrator):
         outside of the Integrator class which uses Numba's no-python
         just-in-time compilation (~20x speedup last I checked compared
         to a serial loop with standard compilation)."""
-        next_step = _update_T(
+        next_step = calc._update_T(
             self.last_step,
             self.last_mask,
             self.dx,
@@ -160,18 +164,64 @@ class Integrator2D(Integrator):
         next_mask = self.last_mask.copy()
         return next_mask
 
+    def find_freezing(self, next_temp):
+        indices = np.argwhere(np.logical_and(self.last_water > 0, next_temp < 0))
+        return indices
+
+    def check_if_frozen(self, next_temp):
+        pass
+
     def timeloop(self):
         """Method which holds the main timeloop."""
         t = self.timevars
         for n in range(t.nt - 1):
             self.last_step = self.T[:, :, n]
             self.last_mask = self.M[:, :, n]
+            self.last_water = self.W[:, :, n]
+
+            # update temperature for all
+            next_temp = self.update_T()
+
+            # water correction:
+            # cells with water are cells where self.W > 0
+            # cells which can freeze are those which have a
+            # negative component
+            cells_freezing = self.find_freezing(next_temp)
+
+            # print(f"{cells_freezing.shape=}")
+            # print(cells_freezing)
+            # freezing cells can go down two paths:
+            # 1: delta_T is large enough to freeze the entire cell, then
+            #    we need to correct for the residual temp.
+            # 2. delta_T is insufficient to freeze the entire cell,
+            #    then we need to hold temperature at zero and update the
+            #    water content.
+
+            # calculate the masses of freezing cells: this new array
+            # should have different size than self.last_water
+            # cell_masses = (
+            #     self.last_water[cells_freezing]
+            #     * 1000
+            #     * self.dx
+            #     * self.dy
+            #     * self.groundvars.w
+            #     * 0.5
+            # )
+            # print(f"{cell_masses.shape=}")
+            # print(f"{next_temp.shape=}")
+            # print(cell_masses)
+
+            # then do the correction
+
+            next_water = copy(self.last_water)
+
+            # NOTE: There is a condition that must be enforced:
+            # water content in frozen cells MUST be zero
+
+            # Update attributes:
             self.T[:, :, n + 1] = self.update_T()
             self.M[:, :, n + 1] = self.update_mask()
-            # FIXME: after delta_T from the last time step is calculated:
-            # find cells in T that have w > 0 and T < 0
-            # check if frozen
-            # juggle cells
+            self.W[:, :, n + 1] = next_water
 
 
 class Integrator3D(Integrator):
@@ -313,7 +363,7 @@ class Integrator3D(Integrator):
         outside of the Integrator class which uses Numba's no-python
         just-in-time compilation (~20x speedup last I checked compared
         to a serial loop with standard compilation)."""
-        next_step = _update_T_3D(
+        next_step = calc._update_T_3D(
             self.last_step,
             self.last_mask,
             self.dx,
@@ -388,9 +438,9 @@ class Integrator3D(Integrator):
                     water_content = self.W[i, j, k, n]
                     water_mass = water_content * self.dx * self.dy * self.dz * 0.5
 
-                    total_latent_heat = get_freezing_latent_heat(water_mass)
+                    total_latent_heat = calc.get_freezing_latent_heat(water_mass)
                     print(f"{total_latent_heat=}")
-                    joules_released = joules_from_delta_T(water_mass, next_cell)
+                    joules_released = calc.joules_from_delta_T(water_mass, next_cell)
                     print(f"{joules_released=}")
                     proportion_frozen = joules_released / total_latent_heat
 
