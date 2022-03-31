@@ -1,5 +1,10 @@
+from ast import Break
 from collections import namedtuple
+<<<<<<< HEAD
 from copy import copy
+=======
+from operator import ne
+>>>>>>> 49c5f9b883923e3adbdbd427ceeb761c193a2a50
 
 import numpy as np
 import yaml
@@ -8,6 +13,20 @@ from tqdm import tqdm
 
 import calculations as calc
 from StringUtils import tprint
+<<<<<<< HEAD
+=======
+
+# from calculations import (
+#     _update_T,
+#     _update_T_3D,
+#     get_freezing_latent_heat,
+#     joules_from_delta_T,
+#     delta_T_from_joules,
+# )
+import calculations as calc
+from tqdm import tqdm
+from copy import copy
+>>>>>>> 49c5f9b883923e3adbdbd427ceeb761c193a2a50
 
 
 class Integrator:
@@ -316,6 +335,7 @@ class Integrator3D(Integrator):
         # an initial water content set by groundvars.
         W0 = np.zeros_like(M0)
         W0[np.where(M0 == 2)] = self.groundvars.w
+        W0[:, :, -1] = 0  # zero water content in basal layer.
         W[:, :, :, 0] = W0
 
         # Set the first  'plane' of initial conditions:
@@ -354,7 +374,9 @@ class Integrator3D(Integrator):
         FTCS scheme diffuses into it"""
         # The active layer boundary traverses all columns and rows of
         # the bottom 'sheet'.
-        sanitized_step = last_step.copy()
+        sanitized_step = copy(last_step)
+        # set the value of the lowest layer to the basal temperature
+        # given in .tempvars
         sanitized_step[:, :, -1] = self.tempvars.T_b
         return sanitized_step
 
@@ -406,17 +428,23 @@ class Integrator3D(Integrator):
         """Method which holds the main timeloop."""
         eps = 1e-4
         for n in tqdm(range(self.nt - 1)):
+            # Juggle time slices:
             self.last_step = self.T[:, :, :, n]
             self.last_mask = self.M[:, :, :, n]
+            self.last_water = self.W[:, :, :, n]
 
-            self.W[:, :, :, n + 1] = copy(self.W[:, :, :, n])
-
+            # Update the temperature grid with one timestep of the
+            # FTSC scheme:
             next_step = self.update_T_3D()
+            next_water = copy(self.last_water)
 
+            # Check for convergence:
             if np.allclose(self.last_step, next_step, rtol=eps):
                 print(f"Timeloop converged after {n=} iterations. Exiting.")
+                self.end = n
                 return
 
+<<<<<<< HEAD
             # update temperatures:
             self.T[:, :, :, n + 1] = next_step
             # self.M[:, :, :, n + 1] = self.update_mask()
@@ -441,26 +469,95 @@ class Integrator3D(Integrator):
                     total_latent_heat = calc.get_freezing_latent_heat(water_mass)
                     print(f"{total_latent_heat=}")
                     joules_released = calc.joules_from_delta_T(water_mass, next_cell)
+=======
+            ###
+
+            # check if any soil cells have seen a temperature
+            # delta from positive to negative:
+            # sign_delta = self.index_sign_change(next_step)
+            # mass of water in all cells:
+            cell_masses = next_water * 1000 * self.dx * self.dy * self.dz * 0.5
+
+            # make a new array of cells that are undergoing a freeze process:
+            negative_cells = copy(next_step)
+            # keep only those where the temperature is negative
+            negative_cells[negative_cells >= 0] = 0
+
+            if np.any(negative_cells[cell_masses > 0]):
+                try:
+                    # calculate latent heat stored in each cell which would be
+                    # released if the entire cell were to freeze:
+                    total_latent_heat = calc.get_freezing_latent_heat(cell_masses)
+
+                    # calculate the energy released by dropping the temperature in
+                    # freezing cells by some delta_T
+                    joules_released = calc.joules_from_delta_T(
+                        cell_masses, negative_cells
+                    )
+
+                    freeze_fraction = joules_released / total_latent_heat
+
+                    next_step[freeze_fraction < 1] = 0
+                    next_water[freeze_fraction < 1] = next_water[
+                        freeze_fraction < 1
+                    ] * (1 - freeze_fraction[freeze_fraction < 1])
+                    next_step[freeze_fraction >= 1] = calc.delta_T_from_joules(
+                        cell_masses[freeze_fraction >= 1],
+                        total_latent_heat - joules_released,
+                    )
+                    next_water[freeze_fraction >= 1] = 0
+                except:
+                    print(f"{n=}")
+                    print(f"{total_latent_heat=}")
+>>>>>>> 49c5f9b883923e3adbdbd427ceeb761c193a2a50
                     print(f"{joules_released=}")
-                    proportion_frozen = joules_released / total_latent_heat
+                    print(f"{freeze_fraction=}")
+                    return
+            ###
 
-                    # update water content:
-                    next_water = water_content - water_content * (1 - proportion_frozen)
+            # # find indices where two conditions are satisfied:
+            # # 1) a positive to negative transition in temperature
+            # #    i.e. the temperature in the cell crosses zero
+            # # 2b) the cell contains water (i.e. last_water > 0)
+            # # ~~2a) the cell is a soil cell (i.e. last_mask == 2)~~
+            # indices = np.argwhere(np.logical_and(sign_delta, self.last_water > 0))
+            # if np.any(indices):
+            #     for index in indices:
+            #         i, j, k = index
+            #         cell_water = self.last_water[i, j, k]
+            #         cell_temp = next_step[i, j, k]
+            #         # If the amount of water in the cell is sufficiently small,
+            #         # set this value to zero and continue
+            #         if cell_water < 1e-5:
+            #             next_water[i, j, k] = 0
+            #             continue
 
-                    # update temperature grid:
-                    self.T[i, j, k, n + 1] = 0
+            #         # calculate the mass of water in the cell
+            #         cell_mass = cell_water * 1000 * self.dx * self.dy * self.dz * 0.5
+            #         # The positive portion of the temperature delta doesn't
+            #         # need to be accounted for, all we care about is the delta
+            #         # which is below zero.
+            #         joules_released = calc.joules_from_delta_T(cell_mass, cell_temp)
+            #         total_latent_heat = calc.get_freezing_latent_heat(cell_mass)
 
-                    if next_water < 0:
-                        print("Freezing front overshot")
-                        # correct the temperature grid:
-                        # calculate mass of water overshot
-                        # find how many joules it would have taken to freeze that mass
-                        # find what delta_T arises from re-adding those many joules
-                        # update the temperature grid with delta_T
-                    self.W[i, j, k, n + 1] = next_water
+            #         if np.allclose(total_latent_heat, 0):
+            #             print(f"{total_latent_heat=} < 0:   WHAT THE FUCK")
+            #             break
 
-            # FIXME: after delta_T from the last time step is calculated:
-            # find cells in T that have w > 0 and T < 0
-            # check if frozen
-            # juggle cells
-            # if any in T where M > 0 has sign change from last --> next:
+            #         if joules_released > total_latent_heat:
+            #             cell_water = 0
+            #             extra_temp = calc.delta_T_from_joules(
+            #                 cell_mass, joules_released - total_latent_heat
+            #             )
+            #             cell_temp = -extra_temp
+            #         else:
+            #             proportion_frozen = joules_released / total_latent_heat
+            #             cell_water *= 1 - proportion_frozen
+            #             cell_temp = 0
+
+            #         # Update the current timestep grid:
+            #         next_step[i, j, k] = cell_temp
+            #         next_water[i, j, k] = cell_water
+            self.T[:, :, :, n + 1] = next_step
+            self.W[:, :, :, n + 1] = next_water
+            self.M[:, :, :, n + 1] = self.M[:, :, :, n]

@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from numba import njit, jit
-from sklearn.svm import OneClassSVM
 
 
 @njit
@@ -190,9 +189,9 @@ def joules_from_delta_T(mass_h20, delta_temp):
     """Returns joules released that would theoretically
     be released by dropping a `mass_h20`
     by `delta-temp` degrees"""
-    delta_temp = np.abs(delta_temp)
+    delta_temp = delta_temp
     specific_heat_h20 = 4182  # J/(kgC)
-    return specific_heat_h20 * mass_h20 * delta_temp
+    return -specific_heat_h20 * mass_h20 * delta_temp
 
 
 def lens_creation():
@@ -209,6 +208,13 @@ def push_to_surface():
 
 def push_to_void():
     pass
+
+
+def delta_T_from_joules(mass_h20, joules):
+    """Returns temperature delta incurred from that removing
+    quantity `joules` from `mass_h20` kg of liquid water, in degC"""
+    specific_heat_h20 = 4182  # J/(kgC)
+    return joules / (mass_h20 * specific_heat_h20)
 
 
 # %%

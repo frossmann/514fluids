@@ -120,3 +120,31 @@ def animate_3d(sim, clim=[-5, 5], step=5):
     plt.show()
     return [ani]
     # return None
+
+
+def animate_depth_profile(sim, var, xi=0, yi=0):
+    """
+    Hello
+    """
+    if var.lower() == "t":
+        plotvar = sim.T
+    if var.lower() == "m":
+        plotvar = sim.M
+    if var.lower() == "w":
+        plotvar = sim.W
+
+    fig, ax = plt.subplots()
+    (line,) = ax.plot(sim.dz * np.arange(0, sim.nz), plotvar[xi, yi, :, 0])
+
+    ax.set_xlabel("Depth, (m)")
+    ax.set_ylabel("Temperature, (degC)")
+
+    def updateFig(j):
+        line.set_ydata(plotvar[xi, yi, :, j])
+        return [line]
+
+    ani = animation.FuncAnimation(
+        fig, updateFig, frames=np.arange(0, sim.end, 10), interval=5, blit=True
+    )
+    plt.show()
+    return ani
