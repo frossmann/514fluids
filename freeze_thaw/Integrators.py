@@ -226,7 +226,7 @@ class Integrator2D(Integrator):
                     cell_idx = np.where(proportion_frozen > 1)
                     freezing_temps[cell_idx] = calc.delta_T_from_joules(
                         cell_masses[cell_idx],
-                        (heat_released - cell_latent_heats),
+                        (heat_released[cell_idx] - cell_latent_heats[cell_idx]),
                     )
                 if np.any(proportion_frozen <= 1):
                     cell_idx = np.where(proportion_frozen <= 1)
