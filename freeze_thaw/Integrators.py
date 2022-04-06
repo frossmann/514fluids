@@ -184,57 +184,63 @@ class Integrator2D(Integrator):
             next_temp = self.update_T()
             next_water = copy(self.last_water)
 
-            # water correction:
-            # cells with water are cells where self.W > 0
-            # cells which can freeze are those which have a
-            # negative component
-            idx = self.find_freezing(self.last_water, next_temp)
-            if np.any(idx):
+            eps = 1e-5
+            if np.allclose(self.last_step, next_temp, rtol=eps):
+                self.end = n
+                print(f"Timeloop converged after {n=} iterations. Exiting.")
+                return
 
-                freezing_temps = next_temp[idx[0], idx[1]]
-                freezing_water = next_water[idx[0], idx[1]]
-                # print(f"{n=}")
-                # print(f"{idx.shape=}")
-                # print(idx)
-                # freezing cells can go down two paths:
-                # 1: delta_T is large enough to freeze the entire cell, then
-                #    we need to correct for the residual temp.
-                # 2. delta_T is insufficient to freeze the entire cell,
-                #    then we need to hold temperature at zero and update the
-                #    water content.
+            # # water correction:
+            # # cells with water are cells where self.W > 0
+            # # cells which can freeze are those which have a
+            # # negative component
+            # idx = self.find_freezing(self.last_water, next_temp)
+            # if np.any(idx):
 
-                # calculate the masses of freezing cells: this new array
-                # should have different size than self.last_water
-                cell_masses = (
-                    freezing_water * 1000 * self.dx * self.dy * self.groundvars.w * 0.5
-                )
-                # print(f"{cell_masses.shape=}")
-                # print(f"{next_temp.shape=}")
-                # print(cell_masses)
+            #     freezing_temps = next_temp[idx[0], idx[1]]
+            #     freezing_water = next_water[idx[0], idx[1]]
+            #     # print(f"{n=}")
+            #     # print(f"{idx.shape=}")
+            #     # print(idx)
+            #     # freezing cells can go down two paths:
+            #     # 1: delta_T is large enough to freeze the entire cell, then
+            #     #    we need to correct for the residual temp.
+            #     # 2. delta_T is insufficient to freeze the entire cell,
+            #     #    then we need to hold temperature at zero and update the
+            #     #    water content.
 
-                # get the latent heat of freezing for each cell that
-                # would be released of the entire cell is frozen:
-                cell_latent_heats = calc.get_freezing_latent_heat(cell_masses)
+            #     # calculate the masses of freezing cells: this new array
+            #     # should have different size than self.last_water
+            #     cell_masses = (
+            #         freezing_water * 1000 * self.dx * self.dy * self.groundvars.w * 0.5
+            #     )
+            #     # print(f"{cell_masses.shape=}")
+            #     # print(f"{next_temp.shape=}")
+            #     # print(cell_masses)
 
-                # get the energy released by dropping the temperature
-                # of water by delta_T degrees:
-                heat_released = calc.joules_from_delta_T(cell_masses, freezing_temps)
+            #     # get the latent heat of freezing for each cell that
+            #     # would be released of the entire cell is frozen:
+            #     cell_latent_heats = calc.get_freezing_latent_heat(cell_masses)
 
-                proportion_frozen = heat_released / cell_latent_heats
+            #     # get the energy released by dropping the temperature
+            #     # of water by delta_T degrees:
+            #     heat_released = calc.joules_from_delta_T(cell_masses, freezing_temps)
 
-                if np.any(proportion_frozen > 1):
-                    cell_idx = np.where(proportion_frozen > 1)
-                    freezing_temps[cell_idx] = calc.delta_T_from_joules(
-                        cell_masses[cell_idx],
-                        (heat_released[cell_idx] - cell_latent_heats[cell_idx]),
-                    )
-                if np.any(proportion_frozen <= 1):
-                    cell_idx = np.where(proportion_frozen <= 1)
-                    freezing_water[cell_idx] *= 1 - proportion_frozen
-                    freezing_temps[cell_idx] = 0
+            #     proportion_frozen = heat_released / cell_latent_heats
 
-                next_temp[idx[0], idx[1]] = freezing_temps
-                next_water[idx[0], idx[1]] = freezing_water
+            #     if np.any(proportion_frozen > 1):
+            #         cell_idx = np.where(proportion_frozen > 1)
+            #         freezing_temps[cell_idx] = calc.delta_T_from_joules(
+            #             cell_masses[cell_idx],
+            #             (heat_released[cell_idx] - cell_latent_heats[cell_idx]),
+            #         )
+            #     if np.any(proportion_frozen <= 1):
+            #         cell_idx = np.where(proportion_frozen <= 1)
+            #         freezing_water[cell_idx] *= 1 - proportion_frozen
+            #         freezing_temps[cell_idx] = 0
+
+            #     next_temp[idx[0], idx[1]] = freezing_temps
+            #     next_water[idx[0], idx[1]] = freezing_water
 
                 # print(f"{proportion_frozen=}")
 
