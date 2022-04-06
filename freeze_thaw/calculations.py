@@ -218,3 +218,51 @@ def delta_T_from_joules(mass_h20, joules):
 
 
 # %%
+import numpy as np
+import matplotlib.pyplot as plt
+
+def diff_1d_analytic(time, kappa = 0.000001):
+    """Analytical solution for 1D diffusion equation
+    evaluated at time `time` over the spatial domain 
+    of the freeze-thaw model and the same diffusion constant"""
+
+    def coeff(n):
+        """Coefficient on the fourier terms"""
+        bn = 20 * (-np.sin(n * np.pi) + np.pi * n) / (np.pi ** 2 * n ** 2)
+        return bn
+
+
+    def fourier_term(xline, time, L, kappa, n):
+        """Returns the n-th term of the fourier series from the
+        analytical solution at time `time`"""
+        sol_n = (
+            coeff(n)
+            * np.exp((-kappa * (n * np.pi / L) ** 2) * time)
+            * np.sin(n * np.pi * xline / L)
+        )
+        return sol_n
+
+    def fourier_sum(N, xline, time, L, kappa):
+        """Returns the sum of the first N fourier terms 
+        in the analytical solution at time `time`"""
+        the_sum = np.zeros_like(xline)
+        for n in np.arange(1, N+1, 1):
+            the_sum += fourier_term(xline, time, L, kappa, n)
+        return the_sum
+
+    # problem parameters
+    # boundary conditions   
+    u0 = -5  # surface
+    u1 = 0  # base
+    L = 1  # domain depth, m
+    dx = 0.05  # cell height, m
+    
+
+    # profile line: 
+    xline = np.arange(0, L + dx, dx)
+    
+    # steady state solution: 
+    u_ss = u0 + ((u1 - u0) / L) * xline
+    N = 1000  # number of fourier terms
+    sol_n = u_ss + fourier_sum(N, xline, time, L, kappa)
+    return sol_n
