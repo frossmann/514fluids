@@ -217,10 +217,6 @@ def delta_T_from_joules(mass_h20, joules):
     return joules / (mass_h20 * specific_heat_h20)
 
 
-# %%
-import numpy as np
-import matplotlib.pyplot as plt
-
 def diff_1d_analytic(time, kappa = 0.000001):
     """Analytical solution for 1D diffusion equation
     evaluated at time `time` over the spatial domain 
