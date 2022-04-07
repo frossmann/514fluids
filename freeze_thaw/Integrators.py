@@ -70,7 +70,7 @@ class Integrator2D(Integrator):
         tprint(f"{self.timevars.nt=} s")
         tprint(f"{self.dx=} m")
         tprint(f"{self.dy=} m")
-        tprint(f"{self.dt=} m")
+        tprint(f"{self.dt=} s")
 
     def build_grid(self):
         """Method to construct a NxM model domain given requested
@@ -242,7 +242,7 @@ class Integrator2D(Integrator):
             #     next_temp[idx[0], idx[1]] = freezing_temps
             #     next_water[idx[0], idx[1]] = freezing_water
 
-                # print(f"{proportion_frozen=}")
+            # print(f"{proportion_frozen=}")
 
             # NOTE: There is a condition that must be enforced:
             # water content in frozen cells MUST be zero
@@ -459,69 +459,69 @@ class Integrator3D(Integrator):
             self.T[:, :, :, n + 1] = next_step
             # self.M[:, :, :, n + 1] = self.update_mask()
 
-            # correct for latent heat release:
-            sign_delta = self.index_sign_change(next_step)
-            if np.any(sign_delta):
-                indices = np.argwhere(sign_delta)
-
-                for index in indices:
-                    i, j, k = index
-                    # the value in next_cell is the portion
-                    # of the total delta_T from last --> next steps
-                    # that is below zero (this <0 temperature drop is
-                    # what does the work.)
-                    next_cell = next_step[i, j, k]
-
-                    last_cell = self.last_step[i, j, k]
-                    water_content = self.W[i, j, k, n]
-                    water_mass = water_content * self.dx * self.dy * self.dz * 0.5
-
-                    total_latent_heat = calc.get_freezing_latent_heat(water_mass)
-                    print(f"{total_latent_heat=}")
-                    joules_released = calc.joules_from_delta_T(water_mass, next_cell)
-            ###
-
-            # check if any soil cells have seen a temperature
-            # delta from positive to negative:
+            # # correct for latent heat release:
             # sign_delta = self.index_sign_change(next_step)
-            # mass of water in all cells:
-            cell_masses = next_water * 1000 * self.dx * self.dy * self.dz * 0.5
+            # if np.any(sign_delta):
+            #     indices = np.argwhere(sign_delta)
 
-            # make a new array of cells that are undergoing a freeze process:
-            negative_cells = copy(next_step)
-            # keep only those where the temperature is negative
-            negative_cells[negative_cells >= 0] = 0
+            #     for index in indices:
+            #         i, j, k = index
+            #         # the value in next_cell is the portion
+            #         # of the total delta_T from last --> next steps
+            #         # that is below zero (this <0 temperature drop is
+            #         # what does the work.)
+            #         next_cell = next_step[i, j, k]
 
-            if np.any(negative_cells[cell_masses > 0]):
-                try:
-                    # calculate latent heat stored in each cell which would be
-                    # released if the entire cell were to freeze:
-                    total_latent_heat = calc.get_freezing_latent_heat(cell_masses)
+            #         last_cell = self.last_step[i, j, k]
+            #         water_content = self.W[i, j, k, n]
+            #         water_mass = water_content * self.dx * self.dy * self.dz * 0.5
 
-                    # calculate the energy released by dropping the temperature in
-                    # freezing cells by some delta_T
-                    joules_released = calc.joules_from_delta_T(
-                        cell_masses, negative_cells
-                    )
+            #         total_latent_heat = calc.get_freezing_latent_heat(water_mass)
+            #         print(f"{total_latent_heat=}")
+            #         joules_released = calc.joules_from_delta_T(water_mass, next_cell)
+            # ###
 
-                    freeze_fraction = joules_released / total_latent_heat
+            # # check if any soil cells have seen a temperature
+            # # delta from positive to negative:
+            # # sign_delta = self.index_sign_change(next_step)
+            # # mass of water in all cells:
+            # cell_masses = next_water * 1000 * self.dx * self.dy * self.dz * 0.5
 
-                    next_step[freeze_fraction < 1] = 0
-                    next_water[freeze_fraction < 1] = next_water[
-                        freeze_fraction < 1
-                    ] * (1 - freeze_fraction[freeze_fraction < 1])
-                    next_step[freeze_fraction >= 1] = calc.delta_T_from_joules(
-                        cell_masses[freeze_fraction >= 1],
-                        total_latent_heat - joules_released,
-                    )
-                    next_water[freeze_fraction >= 1] = 0
-                except:
-                    print(f"{n=}")
-                    print(f"{total_latent_heat=}")
-                    print(f"{joules_released=}")
-                    print(f"{freeze_fraction=}")
-                    return
-            ###
+            # # make a new array of cells that are undergoing a freeze process:
+            # negative_cells = copy(next_step)
+            # # keep only those where the temperature is negative
+            # negative_cells[negative_cells >= 0] = 0
+
+            # if np.any(negative_cells[cell_masses > 0]):
+            #     try:
+            #         # calculate latent heat stored in each cell which would be
+            #         # released if the entire cell were to freeze:
+            #         total_latent_heat = calc.get_freezing_latent_heat(cell_masses)
+
+            #         # calculate the energy released by dropping the temperature in
+            #         # freezing cells by some delta_T
+            #         joules_released = calc.joules_from_delta_T(
+            #             cell_masses, negative_cells
+            #         )
+
+            #         freeze_fraction = joules_released / total_latent_heat
+
+            #         next_step[freeze_fraction < 1] = 0
+            #         next_water[freeze_fraction < 1] = next_water[
+            #             freeze_fraction < 1
+            #         ] * (1 - freeze_fraction[freeze_fraction < 1])
+            #         next_step[freeze_fraction >= 1] = calc.delta_T_from_joules(
+            #             cell_masses[freeze_fraction >= 1],
+            #             total_latent_heat - joules_released,
+            #         )
+            #         next_water[freeze_fraction >= 1] = 0
+            #     except:
+            #         print(f"{n=}")
+            #         print(f"{total_latent_heat=}")
+            #         print(f"{joules_released=}")
+            #         print(f"{freeze_fraction=}")
+            #         return
+            # ###
 
             # # find indices where two conditions are satisfied:
             # # 1) a positive to negative transition in temperature
@@ -569,3 +569,4 @@ class Integrator3D(Integrator):
             self.T[:, :, :, n + 1] = next_step
             self.W[:, :, :, n + 1] = next_water
             self.M[:, :, :, n + 1] = self.M[:, :, :, n]
+            self.end = n
